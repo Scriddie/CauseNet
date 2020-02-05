@@ -1,0 +1,10 @@
+1) Which pre-trainings to perform?
+2) Where to insert them?
+
+=> "Causal order", e.g. [('a',), ('b',), ('c',)]
+
+
+TODO:
+finish automatic causal ordering & model surgery
+find / asjust temporal causal dataset
+compare causal vs noncausal network model

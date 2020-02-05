@@ -1,31 +1,40 @@
 import numpy as np
-
+np.set_printoptions(suppress=True)
 
 
 class CauseNet:
 
     def __init__(self, input_dims, output_dims, num_hidden, hidden_dims,
-    eta=0.15):
-        assert num_hidden > 0
+    eta=0.15, reg=0.005):
         self.input_dims = input_dims
         self.output_dims = output_dims
         self.num_hidden = num_hidden
         self.hidden_dims = hidden_dims
         self.weight_matrices = []
         self.eta = eta
+        self.reg = reg
+        self.create_architecture()
+
 
     def create_architecture(self):
-        self.weight_matrices.append(
-            (np.random.rand(self.hidden_dims, self.input_dims+1)-0.5)/1)
-        for i in range(self.num_hidden-1):
+        if self.num_hidden > 0:
             self.weight_matrices.append(
-                (np.random.rand(self.hidden_dims, self.hidden_dims+1)-0.5)/1)
-        self.weight_matrices.append(
-            (np.random.rand(self.output_dims, self.hidden_dims+1)-0.5)/1)
+                (np.random.rand(self.hidden_dims, self.input_dims+1)-0.5)/1)
+            for i in range(self.num_hidden-1):
+                self.weight_matrices.append(
+                    (np.random.rand(self.hidden_dims, self.hidden_dims+1)-0.5)/1)
+            self.weight_matrices.append(
+                (np.random.rand(self.output_dims, self.hidden_dims+1)-0.5)/1)
+        else:
+            print("Creating single layer NN")
+            self.weight_matrices.append(
+                (np.random.rand(self.output_dims, self.input_dims+1)-0.5)/1)
+
 
     def show(self):
-        for i in self.weight_matrices:
-            print(f"{i}\n{i.shape}\n")
+        for i, l in enumerate(self.weight_matrices):
+            print(f"Weights {i} with shape {l.shape}")
+            print(f"{np.round(l, 2)}\n")
 
     def predict(self, x):
         batch_size = x.shape[1]
@@ -40,6 +49,7 @@ class CauseNet:
             # print(f"Output shape {current_shape}, moving on to next layer")
         activations[-1] = activations[-1][1:, :]
         return activations
+
 
     def backpropagate(self, x, y):
         batch_size = x.shape[1]
@@ -67,6 +77,16 @@ class CauseNet:
                 delta,
                 np.transpose(activations[-(i+1)])
             )
+
+            # # L2 regularization
+            # gradient += np.multiply(self.reg, (self.weight_matrices[-i]))
+
+            # # Smth like L1 regularization
+            gradient += np.multiply(
+                np.sign(self.weight_matrices[-i]),
+                np.where(self.weight_matrices[-i] != 0, self.reg, 0)
+            )
+
             # grad_shape = gradient.shape
             # print(f"gradient shape: {grad_shape}")
             self.weight_matrices[-i] -= self.eta * (1/batch_size) * gradient
@@ -80,30 +100,44 @@ class CauseNet:
             return sig
 
 
+def train(cn, x, y):
+
+    # initial prediction
+    result = cn.predict(x)
+    print("\nPredictions before training:")
+    for i in result:
+        print(np.round(i, 3))
+        print("\n")
+
+    # train
+    for i in range(30000):
+        cn.backpropagate(x, y)
+
+    # predict again
+    print("\nPredictions after training:")
+    result = cn.predict(x)
+    for i in result:
+        print(np.round(i, 3))
+        print("\n")
+
+    mse = np.mean(np.square(np.subtract(result[-1], y)))
+    print(f"\n\nMSE: {mse}")
+    
+
+
+
 if __name__ == "__main__":
 
-    # TODO: we have no bias yet - why does this seem to be critical -> to have smth to subtract??
-
+    # TODO: override predictions with candidate causal intermediaries where possible!
+    # TODO: implement pretraining on causal stages!
     cn = CauseNet(input_dims=8, output_dims=8, num_hidden=1, hidden_dims=3)
-    cn.create_architecture()
     cn.show()
-    inp = np.eye(8)
+    x = np.eye(8)
     # inp = np.array([[0, 0, 0, 0, 0, 0, 0, 1],
     #                 [0, 0, 0, 0, 0, 0, 1, 0],
     #                 [0, 0, 0, 0, 0, 1, 0, 0],
     #                 [0, 0, 0, 0, 1, 0, 0, 0],
     #                 [0, 0, 0, 1, 0, 0, 0, 0]]).T
+    y = x
+    train(cn, x, y)
 
-    # initial prediction
-    result = cn.predict(inp)
-    for i in result:
-        print(np.round(i, 3))
-
-    # train
-    for i in range(10000):
-        cn.backpropagate(inp, inp)
-
-    # predict again
-    result = cn.predict(inp)
-    for i in result:
-        print(np.round(i, 3))
